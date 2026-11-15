@@ -41,3 +41,4 @@ flutter build apk --release
 ```
 
 APK output: `build/app/outputs/flutter-apk/app-release.apk`.
+\n\n## Build fix (Flutter 3.50)\n- Updated deprecated color opacity and dropdown initial-value APIs.\n- Replaced the generated starter widget test that referenced a nonexistent `MyApp` and `material_ui` package.\n- Made SMS queue table creation idempotent to avoid a first-launch schema collision if an SMS arrives before the app opens.\n
