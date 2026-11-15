@@ -42,3 +42,14 @@ flutter build apk --release
 
 APK output: `build/app/outputs/flutter-apk/app-release.apk`.
 \n\n## Build fix (Flutter 3.50)\n- Updated deprecated color opacity and dropdown initial-value APIs.\n- Replaced the generated starter widget test that referenced a nonexistent `MyApp` and `material_ui` package.\n- Made SMS queue table creation idempotent to avoid a first-launch schema collision if an SMS arrives before the app opens.\n
+
+## SMS parser improvements
+- Credit-card bill payment confirmations are classified as `TRANSFER`, not `CREDIT`, so they do not inflate income or ordinary expense totals.
+- The account field now includes a detected bank name (from SMS content/sender ID) and masked account suffix when available.
+- Ledger rows display the bank/account label.
+- Re-importing inbox SMS updates an existing matching transaction, including previously misclassified card-payment rows, rather than creating duplicates.
+- Bank identification currently uses sender/body text patterns for common Indian banks; unrecognized senders are labelled `Bank account`.
+
+
+## Credit-card bill duplicate handling
+When the same bill payment generates two SMS messages, the parser retains the bank-account debit as a neutral `TRANSFER` and ignores the credit-card-side `received` / `credited` / `posted` confirmation. This prevents the second message from appearing as income or duplicating the payment in the ledger. Please test against your bank's exact SMS wording.

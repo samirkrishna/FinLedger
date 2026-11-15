@@ -35,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _load() async { try { await SmsImporter.importPending(); } catch (_) {} final data = await FinDatabase.instance.transactions(month); if (mounted) setState(() => rows = data); }
   double get credits => rows.where((e) => e['type'] == 'CREDIT').fold(0.0, (s,e) => s + (e['amount'] as num).toDouble());
   double get debits => rows.where((e) => e['type'] == 'DEBIT').fold(0.0, (s,e) => s + (e['amount'] as num).toDouble());
+  double get transfers => rows.where((e) => e['type'] == 'TRANSFER').fold(0.0, (s,e) => s + (e['amount'] as num).toDouble());
   Future<void> _import() async {
     setState(() => importing = true);
     try {
@@ -58,14 +59,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
   Widget _monthPicker() => Row(children:[IconButton(onPressed:()=>setState(()=>month=DateTime(month.year,month.month-1)),icon:const Icon(Icons.chevron_left)),Expanded(child:Text(DateFormat('MMMM yyyy').format(month),textAlign:TextAlign.center,style:const TextStyle(fontWeight:FontWeight.w700,fontSize:16))),IconButton(onPressed:()=>setState(()=>month=DateTime(month.year,month.month+1)),icon:const Icon(Icons.chevron_right))]);
   Widget _dashboard() => RefreshIndicator(onRefresh:_load,child:ListView(padding:const EdgeInsets.fromLTRB(16,8,16,100),children:[_monthPicker(),_summaryCard(),const SizedBox(height:18),Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('Recent transactions',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),TextButton(onPressed:()=>setState(()=>tab=1),child:const Text('View all'))]),if(rows.isEmpty)_empty() else ...rows.take(6).map(_transactionTile)]));
-  Widget _summaryCard()=>Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(color:const Color(0xFF176B55),borderRadius:BorderRadius.circular(22)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('NET CASH FLOW',style:TextStyle(color:Colors.white.withValues(alpha: .8),fontSize:11,letterSpacing:1.2)),const SizedBox(height:8),Text(money.format(credits-debits),style:const TextStyle(color:Colors.white,fontSize:30,fontWeight:FontWeight.bold)),const SizedBox(height:20),Row(children:[Expanded(child:_metric('Income',credits,Icons.south_west)),Expanded(child:_metric('Expenses',debits,Icons.north_east))]) ]));
+  Widget _summaryCard()=>Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(color:const Color(0xFF176B55),borderRadius:BorderRadius.circular(22)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('NET CASH FLOW',style:TextStyle(color:Colors.white.withValues(alpha: .8),fontSize:11,letterSpacing:1.2)),const SizedBox(height:8),Text(money.format(credits-debits),style:const TextStyle(color:Colors.white,fontSize:30,fontWeight:FontWeight.bold)),const SizedBox(height:20),Row(children:[Expanded(child:_metric('Income',credits,Icons.south_west)),Expanded(child:_metric('Expenses',debits,Icons.north_east))]),if(transfers>0)...[const SizedBox(height:10),_metric('Card payments / transfers',transfers,Icons.swap_horiz)] ]));
   Widget _metric(String label,double amount,IconData icon)=>Row(children:[Icon(icon,color:Colors.white70,size:18),const SizedBox(width:7),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(color:Colors.white70,fontSize:12)),Text(money.format(amount),style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w600))]))]);
   Widget _ledger()=>ListView(padding:const EdgeInsets.fromLTRB(16,8,16,100),children:[_monthPicker(),if(rows.isEmpty)_empty() else ...rows.map(_transactionTile)]);
   Widget _reports()=>ListView(padding:const EdgeInsets.all(16),children:[_monthPicker(),_summaryCard(),const SizedBox(height:18),const Text('Spending by category',style:TextStyle(fontWeight:FontWeight.bold,fontSize:18)),const SizedBox(height:10),..._categoryTotals().entries.map((e)=>Card(child:ListTile(title:Text(e.key),trailing:Text(money.format(e.value),style:const TextStyle(fontWeight:FontWeight.w700))))) ]);
   Map<String,double> _categoryTotals(){final m=<String,double>{};for(final r in rows.where((e)=>e['type']=='DEBIT')){final k=(r['category']??'Other').toString();m[k]=(m[k]??0)+(r['amount'] as num).toDouble();}return m;}
   Widget _settings()=>ListView(padding:const EdgeInsets.all(16),children:[const Text('On-device privacy',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold)),const SizedBox(height:8),const Card(child:ListTile(leading:Icon(Icons.phonelink_lock),title:Text('Local-only storage'),subtitle:Text('Transactions are stored in this phone’s SQLite database. FinLedger has no backend or account login.'))),Card(child:ListTile(leading:const Icon(Icons.sms_outlined),title:const Text('Import bank SMS'),subtitle:const Text('Grant SMS permission and scan your inbox for bank transaction messages.'),onTap:_import)),const Card(child:ListTile(leading:Icon(Icons.info_outline),title:Text('Important'),subtitle:Text('SMS parsing depends on the bank message format. Review imported entries and correct any mistakes. OTPs and unrelated messages are not imported.')))]);
   Widget _empty()=>const Padding(padding:EdgeInsets.symmetric(vertical:50),child:Column(children:[Icon(Icons.receipt_long_outlined,size:48,color:Colors.grey),SizedBox(height:12),Text('No transactions for this month',style:TextStyle(color:Colors.grey)),Text('Import bank SMS or add a transaction manually.',style:TextStyle(color:Colors.grey,fontSize:12))]));
-  Widget _transactionTile(Map<String,Object?> r)=>Card(margin:const EdgeInsets.only(bottom:8),child:ListTile(leading:CircleAvatar(backgroundColor:(r['type']=='CREDIT'?Colors.green:Colors.orange).withValues(alpha: .12),child:Icon(r['type']=='CREDIT'?Icons.south_west:Icons.north_east,color:r['type']=='CREDIT'?Colors.green:Colors.deepOrange)),title:Text((r['merchant']??r['description']??'Transaction').toString(),maxLines:1,overflow:TextOverflow.ellipsis),subtitle:Text('${r['category']??'Other'} · ${DateFormat('dd MMM').format(DateTime.fromMillisecondsSinceEpoch(r['date'] as int))}'),trailing:Text('${r['type']=='CREDIT'?'+':'−'}${money.format((r['amount'] as num).toDouble())}',style:TextStyle(fontWeight:FontWeight.w700,color:r['type']=='CREDIT'?Colors.green:Colors.black87))));
+  Widget _transactionTile(Map<String,Object?> r) {
+    final type = (r['type'] ?? 'DEBIT').toString();
+    final isCredit = type == 'CREDIT';
+    final isTransfer = type == 'TRANSFER';
+    final color = isCredit ? Colors.green : isTransfer ? Colors.blueGrey : Colors.deepOrange;
+    final account = (r['account'] ?? '').toString();
+    final title = (r['merchant']?.toString().isNotEmpty == true)
+        ? r['merchant'].toString()
+        : (isTransfer ? 'Credit card payment' : (r['category'] ?? 'Bank transaction').toString());
+    final dateText = DateFormat('dd MMM').format(DateTime.fromMillisecondsSinceEpoch(r['date'] as int));
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: .12),
+          child: Icon(isCredit ? Icons.south_west : isTransfer ? Icons.swap_horiz : Icons.north_east, color: color),
+        ),
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text('${r['category'] ?? 'Other'} · $dateText${account.isNotEmpty ? '\n$account' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
+        isThreeLine: account.isNotEmpty,
+        trailing: Text(
+          '${isCredit ? '+' : isTransfer ? '↔ ' : '−'}${money.format((r['amount'] as num).toDouble())}',
+          style: TextStyle(fontWeight: FontWeight.w700, color: color),
+        ),
+      ),
+    );
+  }
 }
 
 class AddTransactionScreen extends StatefulWidget { const AddTransactionScreen({super.key}); @override State<AddTransactionScreen> createState()=>_AddTransactionScreenState(); }

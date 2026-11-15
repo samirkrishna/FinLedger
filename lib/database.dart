@@ -11,5 +11,18 @@ class FinDatabase {
     await db.execute('''CREATE TABLE IF NOT EXISTS sms_queue(id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, body TEXT, received_at INTEGER)''');
   });
   Future<int> insert(Map<String,Object?> row) async {try{return await (await database).insert('transactions',row,conflictAlgorithm:ConflictAlgorithm.ignore);}catch(_){return 0;}}
+  Future<int> upsertByFingerprint(Map<String,Object?> row) async {
+    try {
+      final db = await database;
+      final fingerprint = row['fingerprint'];
+      final existing = await db.query('transactions', columns: ['id'], where: 'fingerprint = ?', whereArgs: [fingerprint], limit: 1);
+      if (existing.isNotEmpty) {
+        return await db.update('transactions', row, where: 'fingerprint = ?', whereArgs: [fingerprint]);
+      }
+      return await db.insert('transactions', row, conflictAlgorithm: ConflictAlgorithm.ignore);
+    } catch (_) {
+      return 0;
+    }
+  }
   Future<List<Map<String,Object?>>> transactions(DateTime month) async {final start=DateTime(month.year,month.month).millisecondsSinceEpoch;final end=DateTime(month.year,month.month+1).millisecondsSinceEpoch;return (await database).query('transactions',where:'date >= ? AND date < ?',whereArgs:[start,end],orderBy:'date DESC');}
 }
